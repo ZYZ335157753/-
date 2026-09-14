@@ -6,12 +6,12 @@ from pathlib import Path
 
 
 MENU = [
-    {"id": "osmanthus-oolong", "name": "桂花乌龙奶茶", "category": "人气轻乳", "price": 16, "description": "金桂蜜香与焙火乌龙，柔和回甘。", "badge": "招牌"},
-    {"id": "white-peach-jasmine", "name": "白桃茉莉轻乳", "category": "人气轻乳", "price": 18, "description": "清甜白桃，收束于茉莉茶香。", "badge": "清新"},
-    {"id": "coconut-matcha", "name": "生椰抹茶云顶", "category": "云顶特调", "price": 20, "description": "浓郁抹茶与鲜椰乳，绵密不腻。", "badge": "限定"},
-    {"id": "mango-pomelo", "name": "山野杨枝甘露", "category": "果茶", "price": 22, "description": "芒果、西柚与西米，明亮饱满。", "badge": "果香"},
-    {"id": "rose-grape", "name": "玫瑰青提冰茶", "category": "果茶", "price": 19, "description": "青提清爽，点缀一缕玫瑰。", "badge": "低糖推荐"},
-    {"id": "black-sugar", "name": "黑糖波波厚乳", "category": "醇厚奶茶", "price": 17, "description": "现熬黑糖珍珠，醇香厚乳。", "badge": "经典"},
+    {"id": "osmanthus-oolong", "name": "桂花乌龙奶茶", "category": "招牌奶茶", "price": 16, "description": "金桂蜜香与焙火乌龙，柔和回甘。", "badge": "招牌", "image": "osmanthus-oolong.png"},
+    {"id": "white-peach-jasmine", "name": "白桃茉莉轻乳", "category": "招牌奶茶", "price": 18, "description": "白桃清甜，收束于茉莉茶香。", "badge": "人气", "image": "white-peach-jasmine.png"},
+    {"id": "coconut-matcha", "name": "生椰抹茶云顶", "category": "云顶特调", "price": 20, "description": "浓郁抹茶与鲜椰乳，绵密不腻。", "badge": "限定", "image": "coconut-matcha.png"},
+    {"id": "mango-pomelo", "name": "山野杨枝甘露", "category": "鲜果茶", "price": 22, "description": "芒果、西柚与西米，明亮饱满。", "badge": "鲜果", "image": "mango-pomelo.png"},
+    {"id": "rose-grape", "name": "玫瑰青提冰茶", "category": "鲜果茶", "price": 19, "description": "青提清爽，点缀一缕玫瑰。", "badge": "清爽", "image": "rose-grape.png"},
+    {"id": "black-sugar", "name": "黑糖波波厚乳", "category": "醇厚奶茶", "price": 17, "description": "现熬黑糖珍珠，醇香厚乳。", "badge": "经典", "image": "black-sugar.png"},
 ]
 
 
@@ -27,21 +27,31 @@ def ensure_database(database: Path):
             """
             CREATE TABLE IF NOT EXISTS products (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL,
-                price INTEGER NOT NULL, description TEXT NOT NULL, badge TEXT NOT NULL
+                price INTEGER NOT NULL, description TEXT NOT NULL, badge TEXT NOT NULL, image TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_no TEXT UNIQUE NOT NULL, customer_name TEXT NOT NULL,
-                phone TEXT, items_json TEXT NOT NULL, total INTEGER NOT NULL,
+                order_no TEXT UNIQUE NOT NULL, pickup_no TEXT, customer_name TEXT NOT NULL,
+                phone TEXT, phone_last4 TEXT, items_json TEXT NOT NULL, total INTEGER NOT NULL,
                 payment_method TEXT NOT NULL, payment_status TEXT NOT NULL,
                 status TEXT NOT NULL, created_at TEXT NOT NULL
             );
             """
         )
+        product_columns = {row["name"] for row in conn.execute("PRAGMA table_info(products)")}
+        if "image" not in product_columns:
+            conn.execute("ALTER TABLE products ADD COLUMN image TEXT NOT NULL DEFAULT ''")
+        order_columns = {row["name"] for row in conn.execute("PRAGMA table_info(orders)")}
+        if "pickup_no" not in order_columns:
+            conn.execute("ALTER TABLE orders ADD COLUMN pickup_no TEXT")
+        if "phone_last4" not in order_columns:
+            conn.execute("ALTER TABLE orders ADD COLUMN phone_last4 TEXT")
         for product in MENU:
             conn.execute(
-                """INSERT OR IGNORE INTO products (id, name, category, price, description, badge)
-                   VALUES (:id, :name, :category, :price, :description, :badge)""",
+                """INSERT INTO products (id, name, category, price, description, badge, image)
+                   VALUES (:id, :name, :category, :price, :description, :badge, :image)
+                   ON CONFLICT(id) DO UPDATE SET name=excluded.name, category=excluded.category,
+                   price=excluded.price, description=excluded.description, badge=excluded.badge, image=excluded.image""",
                 product,
             )
 
@@ -52,8 +62,12 @@ def menu(database):
 
 
 def create_order(database, payload):
-    customer_name = str(payload.get("customer_name", "到店顾客")).strip()[:40] or "到店顾客"
-    phone = str(payload.get("phone", "")).strip()[:30]
+    customer_name = str(payload.get("customer_name", "")).strip()[:20]
+    phone_last4 = str(payload.get("phone_last4", "")).strip()
+    if not customer_name:
+        raise ValueError("请填写取餐称呼")
+    if len(phone_last4) != 4 or not phone_last4.isdigit():
+        raise ValueError("请填写手机号尾号四位")
     requested_items = payload.get("items", [])
     if not isinstance(requested_items, list) or not requested_items:
         raise ValueError("请至少选择一杯饮品")
@@ -74,18 +88,23 @@ def create_order(database, payload):
         items.append(item)
         total += item["subtotal"]
 
-    order_no = f"YQ{datetime.now().strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:4].upper()}"
+    now = datetime.now().astimezone()
+    order_no = f"YQ{now.strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:4].upper()}"
+    today_prefix = now.strftime("%Y-%m-%d")
+    with connection(database) as conn:
+        daily_count = conn.execute("SELECT COUNT(*) AS count FROM orders WHERE created_at LIKE ?", (f"{today_prefix}%",)).fetchone()["count"]
+    pickup_no = f"{daily_count + 1:03d}"
     created_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
     order = {
-        "order_no": order_no, "customer_name": customer_name, "phone": phone,
+        "order_no": order_no, "pickup_no": pickup_no, "customer_name": customer_name, "phone_last4": phone_last4,
         "items": items, "total": total, "payment_method": "mock_qr",
         "payment_status": "paid", "status": "preparing", "created_at": created_at,
     }
     with connection(database) as conn:
         cursor = conn.execute(
-            """INSERT INTO orders (order_no, customer_name, phone, items_json, total, payment_method, payment_status, status, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (order_no, customer_name, phone, json.dumps(items, ensure_ascii=False), total,
+            """INSERT INTO orders (order_no, pickup_no, customer_name, phone, phone_last4, items_json, total, payment_method, payment_status, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (order_no, pickup_no, customer_name, "", phone_last4, json.dumps(items, ensure_ascii=False), total,
              order["payment_method"], order["payment_status"], order["status"], created_at),
         )
         order["id"] = cursor.lastrowid
@@ -118,4 +137,3 @@ def update_order_status(database, order_id, status):
         conn.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
         row = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
     return serialize_order(row) if row else None
-

@@ -22,7 +22,7 @@ def post_order():
         order = create_order(current_app.config["DATABASE"], request.get_json(silent=True) or {})
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
-    return jsonify({"message": "订单已支付，正在制作", "order": order}), 201
+    return jsonify({"message": "支付成功，饮品正在制作", "order": order}), 201
 
 
 @api_bp.get("/api/v1/orders/<order_no>")
@@ -37,4 +37,3 @@ def get_order(order_no):
 def mock_payment():
     """Payment adapter placeholder. Replace this route with WeChat/Alipay provider callbacks."""
     return jsonify({"provider": "mock", "status": "paid", "message": "开发环境模拟支付成功"})
-

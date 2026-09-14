@@ -3,18 +3,19 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>云栖茶事 · 在线点单</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-  <header class="nav wrap"><a class="brand" href="#home"><span>YQ</span> 云栖茶事</a><nav><a href="#menu">点一杯</a><a href="#story">关于我们</a><a href="#lookup">查订单</a><a class="admin-link" href="/admin/">管理后台 ↗</a></nav></header>
-  <main>
-    <section class="hero" id="home"><img src="{{ url_for('static', filename='images/hero-milk-tea.png') }}" alt="云栖茶事奶茶"><div class="hero-copy wrap"><p class="eyebrow">YUNQI TEA · 2026</p><h1>一杯茶，<br>刚好栖息。</h1><p>严选原叶茶与真鲜乳，留住每一口从容的香气。</p><a class="button light" href="#menu">现在点单 <b>→</b></a></div></section>
-    <section class="wrap section" id="menu"><div class="section-head"><div><p class="eyebrow">SIGNATURE MENU</p><h2>今日茶单</h2></div><p>可在右侧购物袋调整数量，提交后生成订单。</p></div><div class="layout"><div class="products" id="products" aria-live="polite"></div><aside class="cart"><div class="cart-title"><h3>购物袋</h3><span id="cart-count">0 杯</span></div><div id="cart-items" class="cart-items"><p class="empty">还没有选择饮品</p></div><div class="cart-total"><span>合计</span><strong id="cart-total">¥0</strong></div><button id="checkout" class="button dark" disabled>模拟收款并下单 <b>→</b></button><small>演示环境，不会产生真实扣款。</small></aside></div></section>
-    <section class="story" id="story"><div class="wrap story-grid"><div><p class="eyebrow">OUR PHILOSOPHY</p><h2>让一杯日常，<br>有一点仪式感。</h2></div><p>云栖茶事以东方茶为底，做更轻盈、更耐喝的当代茶饮。每一单现制，期待在忙碌之间给你一段安静的留白。</p></div></section>
-    <section class="wrap section lookup" id="lookup"><p class="eyebrow">ORDER LOOKUP</p><h2>查询订单</h2><form id="lookup-form"><input id="order-no" placeholder="输入订单号，例如 YQ2026..." required><button class="button dark">查询</button></form><div id="lookup-result" class="lookup-result" aria-live="polite"></div></section>
+  <header class="topbar"><a class="brand" href="/"><span>YQ</span><b>云栖茶事</b></a><div class="topbar-copy">现点现做 · 到店自取</div><a class="admin-link" href="/admin/">管理后台</a></header>
+  <main class="page-shell">
+    <section class="welcome"><div><p class="eyebrow">YUNQI TEA HOUSE</p><h1>喝一杯，<em>松弛一下。</em></h1><p>精选原叶茶与真鲜乳，认真做好每一杯。</p></div><img src="{{ url_for('static', filename='images/hero-milk-tea.png') }}" alt="云栖茶事奶茶"></section>
+    <section class="order-page"><div class="heading"><div><p class="eyebrow">MENU</p><h2>今天想喝什么？</h2></div><button class="history-button" id="show-lookup">查询订单</button></div><div class="category-strip" id="categories" aria-label="饮品分类"></div><div class="product-grid" id="products" aria-live="polite"></div></section>
   </main>
-  <div class="modal" id="checkout-modal" hidden><div class="dialog"><button class="close" data-close>×</button><p class="eyebrow">CHECKOUT</p><h2>确认订单</h2><p class="dialog-note">填写取餐信息后，将以“模拟支付”创建一笔已支付订单。</p><form id="order-form"><label>取餐称呼<input name="customer_name" placeholder="例如：林小姐" maxlength="40" required></label><label>手机号（可选）<input name="phone" placeholder="便于核对订单" maxlength="30"></label><button class="button dark">确认模拟支付 ¥<span id="modal-total">0</span></button></form></div></div>
-  <footer>云栖茶事 · 用一杯茶，栖一刻心。</footer><script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <section class="bag-bar" id="bag-bar"><div class="bag-summary"><span class="bag-icon">🛍</span><div><b id="bag-count">还没选饮品</b><small id="bag-total">点一杯试试吧</small></div></div><button id="open-bag" class="checkout-button" disabled>去结算 <span>→</span></button></section>
+  <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+  <section class="bottom-sheet" id="bag-sheet" aria-label="购物袋" hidden><div class="sheet-handle"></div><div class="sheet-title"><div><p class="eyebrow">YOUR BAG</p><h2>已选饮品</h2></div><button class="plain-close" data-close-sheet aria-label="关闭">×</button></div><div class="bag-items" id="bag-items"></div><div class="sheet-total"><span>合计</span><strong id="sheet-total">¥0</strong></div><button class="pay-button" id="open-checkout">确认订单 <span id="checkout-total">¥0</span></button></section>
+  <section class="bottom-sheet compact-sheet" id="checkout-sheet" aria-label="确认订单" hidden><div class="sheet-handle"></div><div class="sheet-title"><div><p class="eyebrow">CHECKOUT</p><h2>确认取餐信息</h2></div><button class="plain-close" data-close-sheet aria-label="关闭">×</button></div><p class="sheet-note">支付后会生成取餐号，请凭取餐号到店取饮品。</p><form id="order-form"><label>取餐称呼<input name="customer_name" placeholder="例如：小林" maxlength="20" required></label><label>手机尾号四位<input name="phone_last4" inputmode="numeric" pattern="\d{4}" maxlength="4" placeholder="例如：1234" required></label><button class="pay-button">模拟支付并下单 <span id="pay-total">¥0</span></button></form></section>
+  <section class="bottom-sheet compact-sheet" id="lookup-sheet" aria-label="查询订单" hidden><div class="sheet-handle"></div><div class="sheet-title"><div><p class="eyebrow">ORDER LOOKUP</p><h2>查询订单</h2></div><button class="plain-close" data-close-sheet aria-label="关闭">×</button></div><form id="lookup-form" class="lookup-form"><input id="order-no" placeholder="输入完整订单号" required><button class="pay-button">查询</button></form><div id="lookup-result" class="lookup-result"></div></section>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body></html>
-
